@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#0f766e"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="icon.svg" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="icon-512.png"/>
+<meta name="format-detection" content="telephone=no"/>
+<title>Pilotage Restaurants</title>
+<style>
+  :root{
+    --brand:#0f766e; --brand-dark:#115e59; --brand-soft:#ccfbf1;
+    --bg:#eef2f6; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --ok:#16a34a; --bad:#dc2626; --gold:#b45309;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px; line-height:1.45;}
+  button{font-family:inherit; touch-action:manipulation; cursor:pointer;}
+  .wrap{max-width:680px; margin:0 auto; padding:0 14px calc(30px + env(safe-area-inset-bottom));}
+  .hide{display:none !important;}
+
+  .topbar{position:sticky; top:0; z-index:30; background:rgba(255,255,255,.94);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+    padding:calc(10px + env(safe-area-inset-top)) 14px 10px;}
+  .tb-in{max-width:680px; margin:0 auto; display:flex; align-items:center; gap:10px;}
+  .tb-back{border:none; background:var(--brand-soft); color:var(--brand-dark); width:38px; height:38px;
+    border-radius:12px; font-size:18px; flex:none;}
+  .tb-title{flex:1; min-width:0;}
+  .tb-title b{display:block; font-size:16.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tb-title small{color:var(--muted); font-size:12px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tb-btn{border:1.5px solid var(--line); background:#fff; border-radius:12px; width:38px; height:38px; font-size:17px; flex:none;}
+
+  .tabs{display:flex; gap:8px; overflow-x:auto; padding:10px 14px; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; position:sticky; top:calc(66px + env(safe-area-inset-top)); z-index:25;
+    background:linear-gradient(var(--bg) 82%, transparent); max-width:708px;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tabchip{flex:none; border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:7px 13px;
+    font-size:13px; font-weight:600; color:#334155;}
+  .tabchip.active{background:var(--brand); border-color:var(--brand); color:#fff;}
+  .tabchip .n{font-size:11px; opacity:.7; margin-left:4px;}
+
+  .navrow{display:flex; gap:8px; overflow-x:auto; padding:10px 14px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  .navrow::-webkit-scrollbar{display:none;}
+  .navchip{flex:none; border:1.5px solid var(--line); background:#fff; border-radius:999px; padding:7px 13px;
+    font-size:13px; font-weight:700; color:#334155;}
+  .navchip.active{background:var(--brand); border-color:var(--brand); color:#fff;}
+
+  .card{background:var(--card); border-radius:16px; padding:14px; margin:10px 0; box-shadow:0 1px 3px rgba(15,23,42,.07);}
+  .card h3{margin:0 0 8px; font-size:15px;}
+  .hero{background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:#fff; border-radius:18px;
+    padding:18px 16px; margin:12px 0; box-shadow:0 4px 14px rgba(15,118,110,.25);}
+  .hero .hl{font-size:12.5px; opacity:.85; font-weight:600; letter-spacing:.4px; text-transform:uppercase;}
+  .hero .hv{font-size:34px; font-weight:800; line-height:1.15; margin:2px 0 10px;}
+  .hero .hgrid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  .hero .hg b{display:block; font-size:16.5px;}
+  .hero .hg small{font-size:11.5px; opacity:.85;}
+
+  .restau-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .rcard{background:var(--card); border-radius:14px; padding:12px; box-shadow:0 1px 3px rgba(15,23,42,.07);
+    border:1.5px solid transparent; text-align:left;}
+  .rcard:active{border-color:var(--brand);}
+  .rcard b{display:block; font-size:14.5px; margin-bottom:2px;}
+  .rcard .rca{font-size:19px; font-weight:800; color:var(--brand-dark);}
+  .rcard .rmeta{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .rcard .rev{font-size:12px; font-weight:700;}
+  .up{color:var(--ok);} .down{color:var(--bad);}
+
+  .ligne{display:flex; align-items:baseline; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line);}
+  .ligne:last-child{border-bottom:none;}
+  .ligne .ll{flex:1; min-width:0; font-size:13.5px; font-weight:600; line-height:1.35;}
+  .ligne .lv{font-size:15px; font-weight:800; white-space:nowrap;}
+  .ligne .lp{font-size:12px; color:var(--muted); width:52px; text-align:right; white-space:nowrap;}
+  .ligne.major{background:#f0fdfa; border-radius:10px; padding:9px 10px; border-bottom:none; margin:3px 0;}
+  .ligne.major .ll{font-weight:800; color:var(--brand-dark); text-transform:uppercase; font-size:12.5px;}
+  .ligne.major .lv{color:var(--brand-dark);}
+
+  .podium{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:8px 0;}
+  .p-item{background:var(--card); border-radius:13px; padding:10px 8px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,.07);}
+  .p-item .pn{font-size:22px;}
+  .p-item b{display:block; font-size:12px; margin-top:2px; line-height:1.25; min-height:30px;}
+  .p-item .pv{font-size:15px; font-weight:800; color:var(--brand-dark);}
+  .p-item .pr{font-size:11px; color:var(--muted);}
+  .rank{display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--line);}
+  .rank:last-child{border-bottom:none;}
+  .rank .rn{width:24px; height:24px; border-radius:8px; background:#f1f5f9; font-size:12px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; flex:none;}
+  .rank .rl{flex:1; font-size:13.5px; font-weight:600;}
+  .rank .rv{font-size:14.5px; font-weight:800; white-space:nowrap;}
+  .rank .rr{font-size:11.5px; color:var(--muted); width:56px; text-align:right; white-space:nowrap;}
+
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; border:none; border-radius:13px;
+    padding:13px 18px; font-size:15px; font-weight:700; min-height:48px;}
+  .btn.primary{background:var(--brand); color:#fff;}
+  .btn.ghost{background:#fff; color:#334155; border:1.5px solid var(--line);}
+  .btn.block{width:100%;}
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:13px; font-weight:700; color:#334155; margin-bottom:5px;}
+  .field input{width:100%; border:1.5px solid var(--line); border-radius:11px; padding:11px 12px; font-size:16px; font-family:inherit;}
+  .meta{color:var(--muted); font-size:12px;}
+  .empty{text-align:center; padding:36px 10px; color:var(--muted);}
+  .agebar{display:flex; align-items:center; gap:8px; margin:12px 2px 0;}
+  .agebar .meta{flex:1;}
+
+  .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(28px + env(safe-area-inset-bottom));
+    background:#0f172a; color:#fff; padding:11px 18px; border-radius:999px; font-size:13.5px; font-weight:600;
+    z-index:99; opacity:0; pointer-events:none; transition:opacity .25s; max-width:86vw; text-align:center;}
+  .toast.show{opacity:.96;}
+  .spinner{display:inline-block; width:15px; height:15px; border:2px solid rgba(15,23,42,.2); border-top-color:var(--brand);
+    border-radius:99px; animation:sp .8s linear infinite; vertical-align:-2px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .modal-bg{position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:60; display:flex;
+    align-items:flex-end; justify-content:center;}
+  @media (min-width:560px){ .modal-bg{align-items:center; padding:20px;} }
+  .sheet{background:#fff; width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:20px; max-height:88vh; overflow:auto;}
+  @media (min-width:560px){ .sheet{border-radius:20px;} }
+  .sheet h3{margin:0 0 14px; font-size:18px;}
+  .toggle{font-size:13px; font-weight:700; color:var(--brand-dark); background:var(--brand-soft);
+    border:none; border-radius:10px; padding:9px 13px; margin-top:10px;}
+  @media print{ .noprint{display:none !important;} body{background:#fff;} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<script>
+"use strict";
+
+/* ============================ CONFIG ============================ */
+const RELAIS_DEFAUT = "https://script.google.com/macros/s/AKfycbzxxGutRsmlzf-Hs9U4U67rHw25dILtLYbeqo-MNjeGSxvqQ_WdPEig7BaV1NLB2zFzhw/exec";
+
+/* ============================ ÉTAT ============================ */
+const state = { view:"home", mois:null, resto:null, catClassement:0, vueResto:"synthese",
+  colPnl:null, colAnnuel:null, restoCumul:"CONSOLIDE", tout:false };
+let cache = { catalogue:null, data:{} };   // {cle, url} + {id:{ts, donnees}}
+let catalogue = null;
+
+/* ============================ OUTILS ============================ */
+const $ = (s) => document.querySelector(s);
+const app = document.getElementById("app");
+function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function toast(m){ const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 2400); }
+function norm(s){ return String(s == null ? "" : s).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’]/g, "'").replace(/\s+/g, " ").trim(); }
+function fmtEur(v){
+  if(typeof v !== "number" || isNaN(v)) return "—";
+  const a = Math.abs(v);
+  const o = a >= 1000 ? { maximumFractionDigits:0 } : { minimumFractionDigits:0, maximumFractionDigits:2 };
+  return v.toLocaleString("fr-FR", o) + " €";
+}
+function fmtPct(v){ return (typeof v === "number" && !isNaN(v)) ? (v * 100).toLocaleString("fr-FR", { maximumFractionDigits:1 }) + " %" : "—"; }
+function fmtQuand(ts){
+  if(!ts) return "";
+  const d = new Date(ts), dif = (Date.now() - ts) / 60000;
+  if(dif < 1) return "à l'instant";
+  if(dif < 60) return "il y a " + Math.round(dif) + " min";
+  if(dif < 1440) return "il y a " + Math.round(dif / 60) + " h";
+  return "le " + d.toLocaleDateString("fr-FR") + " à " + d.toLocaleTimeString("fr-FR", { hour:"2-digit", minute:"2-digit" });
+}
+
+/* ---- Cache local (localStorage, avec élagage si quota) ---- */
+const LSK = "pilotage:cache:";
+function cacheSet(k, v){
+  const ecrire = () => localStorage.setItem(LSK + k, JSON.stringify({ ts:Date.now(), d:v }));
+  try{ ecrire(); }
+  catch(e){
+    try{
+      const entries = [];
+      for(let i = 0; i < localStorage.length; i++){
+        const key = localStorage.key(i);
+        if(key && key.startsWith(LSK)){
+          try{ entries.push([key, JSON.parse(localStorage.getItem(key)).ts || 0]); }catch(_){}
+        }
+      }
+      entries.sort((a, b) => a[1] - b[1]);
+      entries.slice(0, Math.ceil(entries.length / 2)).forEach(([key]) => localStorage.removeItem(key));
+      ecrire();
+    }catch(e2){ /* cache indisponible : les données restent affichées */ }
+  }
+}
+function cacheGet(k){
+  try{ const s = localStorage.getItem(LSK + k); return s ? JSON.parse(s) : null; }catch(e){ return null; }
+}
+function cacheDel(k){ try{ localStorage.removeItem(LSK + k); }catch(e){} }
+function cacheVider(){
+  const keys = [];
+  for(let i = 0; i < localStorage.length; i++){
+    const key = localStorage.key(i);
+    if(key && key.startsWith(LSK)) keys.push(key);
+  }
+  keys.forEach((k) => localStorage.removeItem(k));
+}
+
+/* ---- Réglages ---- */
+function reglages(){ try{ return JSON.parse(localStorage.getItem("pilotage:reglages") || "{}"); }catch(e){ return {}; } }
+function saveReglages(r){ localStorage.setItem("pilotage:reglages", JSON.stringify(r)); }
+
+/* ============================ RELAIS ============================ */
+async function appelRelais(params, force){
+  const r = reglages();
+  const url = r.relay || RELAIS_DEFAUT, cle = r.cle || "";
+  if(!cle) throw new Error("CLE_MANQUANTE");
+  const full = url + "?cle=" + encodeURIComponent(cle) + (params || "");
+  const ck = "req:" + params;
+  if(!force){
+    const c = cacheGet(ck);
+    if(c && (Date.now() - c.ts) < 12 * 3600 * 1000) return c.d;
+  }
+  const resp = await fetch(full);
+  if(!resp.ok) throw new Error("HTTP " + resp.status);
+  const data = await resp.json();
+  if(data.erreur) throw new Error(data.erreur);
+  cacheSet(ck, data);
+  return data;
+}
+const heureDonnees = null;
+
+/* ============================ PARSING ============================ */
+const MOIS_TOKENS = [["JANV",1],["JANVIER",1],["FEV",2],["FEVRIER",2],["MARS",3],["AVRIL",4],["MAI",5],["JUIN",6],["JUILLET",7],["AOUT",8],["SEP",9],["OCT",10],["NOV",11],["DEC",12]];
+const MOIS_NOMS = [null,"Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+function tokenVersMois(tok){
+  tok = norm(tok);
+  for(const [t, n] of MOIS_TOKENS) if(tok.startsWith(t)) return n;
+  return null;
+}
+function ongletVersMois(nom){
+  const m = norm(nom).match(/^SYNTHESE\s+(.+)$/);
+  return m ? tokenVersMois(m[1]) : null;
+}
+function classementVersMois(nom){
+  const m = norm(nom).match(/^CLASSEMENT\s+A\s+(?:FIN\s+)?(.+)$/);
+  return m ? tokenVersMois(m[1]) : null;
+}
+function serieExcel(v){
+  const d = new Date(Math.round((v - 25569) * 86400000));
+  if(isNaN(d)) return String(v);
+  return MOIS_NOMS[d.getUTCMonth() + 1] + " " + d.getUTCFullYear();
+}
+// Colonnes restaurants d'un onglet SYNTHESE : noms en ligne 3 (idx 2), VALEUR c / % c+1
+function parseSynthese(grid){
+  if(!grid || grid.length < 6) throw new Error("grille synthèse trop courte");
+  const noms = grid[2] || [], sous = grid[3] || [];
+  const cols = [];
+  for(let c = 0; c < noms.length; c++){
+    const n = String(noms[c] || "").trim();
+    if(!n) continue;
+    if(norm(sous[c]) === "VALEUR" || n !== "") cols.push({ nom:n.toUpperCase().replace(/\s+/g," "), val:c, pct:c + 1 });
+  }
+  // dédoublonner (même nom)
+  const vus = new Set(), finaux = [];
+  for(const col of cols){ if(!vus.has(col.nom)){ vus.add(col.nom); finaux.push(col); } }
+  const lignes = [];
+  for(let i = 4; i < grid.length; i++){
+    const lab = String((grid[i] || [])[1] ?? "").trim();
+    if(!lab) continue;
+    const vals = {};
+    for(const col of finaux){
+      const v = grid[i][col.val], p = grid[i][col.pct];
+      vals[col.nom] = { v:(typeof v === "number" ? v : null), p:(typeof p === "number" ? p : null) };
+    }
+    lignes.push({ lab, vals, idx:i });
+  }
+  return { cols:finaux, lignes };
+}
+// PNL MENSUEL : libellés de groupe en ligne 3 (idx 2), sous-en-têtes VALEUR/% en idx 3
+function parsePnlMensuel(grid){
+  const labs = grid[2] || [], sous = grid[3] || [];
+  const cols = [];
+  for(let c = 1; c < labs.length; c++){
+    let lab = labs[c];
+    if(lab === null || lab === undefined || String(lab).trim() === "") continue;
+    lab = (typeof lab === "number") ? serieExcel(lab) : String(lab).trim();
+    if(norm(sous[c + 1]) !== "%") continue;   // on veut les colonnes VALEUR
+    cols.push({ nom:lab, val:c, pct:c + 1 });
+  }
+  return { cols, lignes:pnlLignes(grid, cols, 4) };
+}
+// PNL ANNUEL : groupe idx 2 + sous-titre idx 4 (BUDGET/FORECAST/REALISE), sous-en-têtes idx 3
+function parsePnlAnnuel(grid){
+  const labs = grid[2] || [], sous = grid[4] || [], pct = grid[3] || [];
+  const cols = [];
+  for(let c = 1; c < labs.length; c++){
+    let lab = labs[c];
+    if(lab === null || lab === undefined || String(lab).trim() === "") continue;
+    lab = (typeof lab === "number") ? serieExcel(lab) : String(lab).trim();
+    const s = String((sous[c] ?? "")).trim();
+    if(s) lab = lab + " · " + s;
+    if(norm(pct[c + 1]) !== "%") continue;
+    cols.push({ nom:lab, val:c, pct:c + 1 });
+  }
+  return { cols, lignes:pnlLignes(grid, cols, 5) };
+}
+function pnlLignes(grid, cols, debut){
+  const lignes = [];
+  for(let i = debut; i < grid.length; i++){
+    const lab = String((grid[i] || [])[1] ?? "").trim();
+    if(!lab || norm(lab).startsWith("SUPERVISEUR")) continue;
+    const vals = {};
+    for(const col of cols){
+      const v = grid[i][col.val], p = grid[i][col.pct];
+      vals[col.nom] = { v:(typeof v === "number" ? v : null), p:(typeof p === "number" ? p : null) };
+    }
+    lignes.push({ lab, vals });
+  }
+  return lignes;
+}
+// CLASSEMENT : blocs (nom, valeur, taux) — ligne d'en-tête détectée dynamiquement
+function parseClassement(grid){
+  let h = 0;
+  for(let i = 0; i < Math.min(6, grid.length); i++){
+    if((grid[i] || []).some((c) => norm(c) === "RESTAURANT")){ h = i; break; }
+  }
+  const heads = grid[h] || [];
+  const blocs = [];
+  for(let c = 0; c < heads.length - 2; c++){
+    if(norm(heads[c]) === "RESTAURANT"){
+      const titre = [heads[c+1], heads[c+2]].filter(Boolean).join(" — ");
+      blocs.push({ titre:titre || "Classement", nom:c, val:c + 1, taux:c + 2 });
+      c += 2;
+    }
+  }
+  const donnees = blocs.map((b) => ({ titre:b.titre, items:[] }));
+  for(let i = h + 1; i < grid.length; i++){
+    const row = grid[i] || [];
+    blocs.forEach((b, bi) => {
+      const nom = String(row[b.nom] ?? "").trim();
+      if(!nom) return;
+      donnees[bi].items.push({ nom, v:(typeof row[b.val] === "number" ? row[b.val] : null),
+        t:(typeof row[b.taux] === "number" ? row[b.taux] : null) });
+    });
+  }
+  return donnees;
+}
+
+/* ---- Lignes clés du P&L ---- */
+const CLES_PNL = [
+  ["VENTES DE MARCHANDISES"],
+  ["COUTS D'ACHAT DES MARCHANDISES VENDUES", "COUT D'ACHAT TOTAL"],
+  ["MARGE COMMERCIALE"],
+  ["MASSE SALARIALE"],
+  ["CHARGES D'EXPLOITATION"],
+  ["VALEUR AJOUTE", "VALEUR AJOUTEE"],
+  ["EBE"],
+  ["RESULTAT EXPLOITATION"],
+  ["RESULTAT NET"]
+];
+function extraireCles(lignes, colNom){
+  const out = [], vus = new Set();
+  for(const variantes of CLES_PNL){
+    for(const l of lignes){
+      const nl = norm(l.lab);
+      if(variantes.some((v) => nl === v) && !vus.has(nl)){
+        vus.add(nl);
+        out.push({ lab:l.lab, ...(l.vals[colNom] || { v:null, p:null }) });
+        break;
+      }
+    }
+  }
+  return out;
+}
+function ligneCA(lignes, colNom){
+  const l = lignes.find((x) => norm(x.lab) === "VENTES DE MARCHANDISES");
+  return l ? (l.vals[colNom] || { v:null, p:null }) : { v:null, p:null };
+}
+
+/* ============================ ACCÈS DONNÉES ============================ */
+async function getCatalogue(force){
+  if(catalogue && !force) return catalogue;
+  const d = await appelRelais("&liste=1", force);
+  catalogue = d.classeurs;
+  return catalogue;
+}
+async function getOnglets(classeur, onglets, force){
+  if(!onglets.length) return {};
+  const d = await appelRelais("&classeur=" + encodeURIComponent(classeur) + "&onglet=" + encodeURIComponent(onglets.join("|")), force);
+  return d.onglets || {};
+}
+function moisDisponibles(cat){
+  return cat.SYNTHESE.onglets
+    .map(ongletVersMois).filter((m) => m).sort((a, b) => a - b);
+}
+function ongletSynthese(cat, mois){
+  return cat.SYNTHESE.onglets.find((n) => ongletVersMois(n) === mois) || null;
+}
+function ongletsClassement(cat, mois){
+  const cands = cat.SYNTHESE.onglets.filter((n) => classementVersMois(n) === mois);
+  return cands.sort((a, b) => (norm(a).includes("FIN") ? 1 : 0) - (norm(b).includes("FIN") ? 1 : 0));
+}
+const CODE_VILLE = { ATLANTA:"Langueux", BOSTON:"Rennes", COLUMBIA:"Brétigny", DALLAS:"Chambray",
+  ELVIS:"Tours", MIAMI:"Dijon", "NEW YORK":"Arras", ORLANDO:"Vannes", PHILADELPHIE:"Plaisir", PHOENIX:"Saran", CONSOLIDE:"Consolidé" };
+function nomResto(code){
+  const cl = CODE_VILLE[code];
+  return code.charAt(0) + code.slice(1).toLowerCase() + (cl && cl !== "Consolidé" ? " — " + cl : "");
+}
+function ongletPnlMensuel(onglets){
+  return onglets.find((n) => norm(n) === "PNL MENSUEL") || onglets.find((n) => norm(n) === "PNL MENSUEL 2025") || null;
+}
+
+/* ============================ RENDU ============================ */
+function topbar(titre, sous, actions){
+  return `<div class="topbar noprint"><div class="tb-in">
+    ${state.view !== "home" ? `<button class="tb-back" data-action="nav" data-v="home">←</button>` : `<button class="tb-back" data-action="nav" data-v="settings">⚙️</button>`}
+    <div class="tb-title"><b>${esc(titre)}</b><small>${esc(sous || "")}</small></div>
+    ${actions || ""}
+    <button class="tb-btn" data-action="refresh" title="Rafraîchir">⟳</button>
+  </div></div>`;
+}
+function navTabs(){
+  const mois = state.moisDispo || [];
+  return `<div class="tabs noprint">${mois.map((m) =>
+    `<button class="tabchip ${m === state.mois ? "active" : ""}" data-action="mois" data-m="${m}">${MOIS_NOMS[m]}</button>`).join("")}</div>`;
+}
+function ligneHtml(l, forte){
+  const val = (typeof l.v === "number") ? fmtEur(l.v) : (l.v ?? "—");
+  return `<div class="ligne ${forte ? "major" : ""}">
+    <span class="ll">${esc(l.lab)}</span>
+    <span class="lv">${esc(val)}</span>
+    <span class="lp">${fmtPct(l.p)}</span></div>`;
+}
+function tableauCles(cles){
+  if(!cles.length) return `<div class="empty">Aucune donnée</div>`;
+  return `<div>${cles.map((l, i) => ligneHtml(l, i === 0)).join("")}</div>`;
+}
+
+async function render(){
+  const r = reglages();
+  if(!r.cle){ renderOnboarding(); return; }
+  try{
+    if(state.view === "home") await renderHome();
+    else if(state.view === "classement") await renderClassement();
+    else if(state.view === "resto") await renderResto();
+    else if(state.view === "cumul") await renderCumul();
+    else if(state.view === "settings") renderSettings();
+  }catch(e){
+    app.innerHTML = topbar("Pilotage Restaurants") + `<div class="wrap">
+      <div class="card"><h3>⚠️ ${esc(e.message === "CLE_MANQUANTE" ? "Clé manquante" : "Erreur de chargement")}</h3>
+      <p class="meta">${esc(String(e.message || e))}</p>
+      <button class="btn ghost block" data-action="nav" data-v="settings">Ouvrir les réglages</button>
+      <button class="btn primary block" data-action="refresh" style="margin-top:8px;">Réessayer</button></div></div>`;
+  }
+}
+
+/* ---------- Onboarding (clé du relais) ---------- */
+function renderOnboarding(){
+  app.innerHTML = `<div class="wrap" style="padding-top:40px;">
+    <div class="hero"><div class="hl">Pilotage Restaurants</div>
+      <div class="hv">Bienvenue 👋</div>
+      <div style="font-size:13.5px; opacity:.92;">Cette application lit vos tableaux de pilotage en direct.
+      Entrez la clé du relais pour la première ouverture.</div></div>
+    <div class="card">
+      <div class="field"><label>Clé du relais</label>
+        <input id="fCle" type="text" placeholder="ex. f65bca368ee2" autocomplete="off"></div>
+      <div class="field"><label>Adresse du relais</label>
+        <input id="fRelais" type="url" value="${esc(RELAIS_DEFAUT)}"></div>
+      <button class="btn primary block" data-action="save-reglages">Commencer →</button>
+    </div></div>`;
+}
+
+/* ---------- Accueil ---------- */
+async function renderHome(){
+  const cat = await getCatalogue();
+  if(!cat.SYNTHESE) throw new Error("Classeur SYNTHESE introuvable dans le relais");
+  const mois = moisDisponibles(cat);
+  if(!state.mois) state.mois = mois[mois.length - 1];
+  state.moisDispo = mois;
+  const os = ongletSynthese(cat, state.mois);
+  const syn = await getOnglets("SYNTHESE", [os]);
+  const grid = syn[os];
+  if(!grid) throw new Error("Onglet synthèse vide");
+  const S = parseSynthese(grid);
+  const conso = "CONSOLIDE";
+  const cles = extraireCles(S.lignes, conso);
+  const ca = ligneCA(S.lignes, conso);
+  const marge = cles.find((l) => norm(l.lab) === "MARGE COMMERCIALE") || {};
+  const ebe = cles.find((l) => norm(l.lab) === "EBE") || {};
+  const rex = cles.find((l) => norm(l.lab) === "RESULTAT EXPLOITATION") || {};
+
+  // évolution par restaurant depuis le classement
+  let evol = {};
+  try{
+    const candsC = ongletsClassement(cat, state.mois);
+    if(candsC.length){
+      const cl = await getOnglets("SYNTHESE", [candsC[0]]);
+      const blocs = parseClassement(cl[candsC[0]] || []);
+      if(blocs[0]) blocs[0].items.forEach((it) => { evol[norm(it.nom).split(" ")[0]] = it.t; });
+    }
+  }catch(e){}
+
+  const restos = S.cols.filter((c) => c.nom !== "CONSOLIDE");
+  const cards = restos.map((c) => {
+    const d = ligneCA(S.lignes, c.nom);
+    const ev = evol[c.nom];
+    const part = (typeof d.v === "number" && ca.v) ? d.v / ca.v : null;
+    return `<button class="rcard" data-action="resto" data-code="${esc(c.nom)}">
+      <b>${esc(c.nom.charAt(0) + c.nom.slice(1).toLowerCase())}${CODE_VILLE[c.nom] ? `<span class="meta" style="font-weight:600;"> · ${esc(CODE_VILLE[c.nom])}</span>` : ""}</b>
+      <span class="rca">${fmtEur(d.v)}</span>
+      <div class="rmeta">Part du groupe : ${fmtPct(part)} ${typeof ev === "number" ? `· <span class="${ev >= 0 ? "up" : "down"}">${ev >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(ev))}</span>` : ""}</div>
+    </button>`;
+  }).join("");
+
+  app.innerHTML = topbar("Pilotage Restaurants", MOIS_NOMS[state.mois] + " " + new Date().getFullYear()) + navTabs() + `
+  <div class="wrap">
+    <div class="agebar"><span class="meta" id="ageInfo"></span></div>
+    <div class="hero">
+      <div class="hl">CA consolidé — ${MOIS_NOMS[state.mois]}</div>
+      <div class="hv">${fmtEur(ca.v)}</div>
+      <div class="hgrid">
+        <div class="hg"><b>${fmtEur(marge.v)}</b><small>Marge commerciale (${fmtPct(marge.p)})</small></div>
+        <div class="hg"><b>${fmtEur(ebe.v)}</b><small>EBE (${fmtPct(ebe.p)})</small></div>
+        <div class="hg"><b>${fmtEur(rex.v)}</b><small>Rés. exploitation (${fmtPct(rex.p)})</small></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Indicateurs consolidés</h3>
+      ${tableauCles(cles)}
+    </div>
+    <h3 style="margin:16px 2px 4px;">Les restaurants <span class="meta">— touchez pour le détail</span></h3>
+    <div class="restau-grid">${cards}</div>
+    <button class="btn ghost block" data-action="nav" data-v="classement" style="margin-top:14px;">🏆 Voir les classements</button>
+    <button class="btn ghost block" data-action="nav" data-v="cumul" style="margin-top:8px;">📅 Cumul de l'année</button>
+  </div>`;
+  majAge();
+}
+function majAge(){
+  const el = $("#ageInfo");
+  if(!el) return;
+  const c = cacheGet("req:&liste=1");
+  el.textContent = c ? "Données actualisées " + fmtQuand(c.ts) : "Jamais actualisé";
+}
+
+/* ---------- Classements ---------- */
+async function renderClassement(){
+  const cat = await getCatalogue();
+  if(!state.mois) state.mois = moisDisponibles(cat).pop();
+  state.moisDispo = moisDisponibles(cat);
+  const cands = ongletsClassement(cat, state.mois);
+  let blocs = null;
+  for(const n of cands){
+    const cl = await getOnglets("SYNTHESE", [n]);
+    const p = parseClassement(cl[n] || []);
+    if(p.length && p.some((b) => b.items.length)){ blocs = p; break; }
+  }
+  if(!blocs) throw new Error("Aucun classement pour " + MOIS_NOMS[state.mois]);
+  if(state.catClassement >= blocs.length) state.catClassement = 0;
+  const b = blocs[state.catClassement];
+  const top3 = b.items.slice(0, 3);
+  const icones = ["🥇", "🥈", "🥉"];
+  const estCa = /CA /i.test(b.titre);
+  app.innerHTML = topbar("Classements", MOIS_NOMS[state.mois]) + `
+  <div class="navrow noprint">${blocs.map((x, i) =>
+    `<button class="navchip ${i === state.catClassement ? "active" : ""}" data-action="cat" data-i="${i}">${esc(x.titre.split("—")[0].trim())}</button>`).join("")}</div>
+  <div class="wrap">
+    <div class="podium">${top3.map((it, i) => `<div class="p-item"><div class="pn">${icones[i]}</div>
+      <b>${esc(it.nom)}</b><div class="pv">${fmtEur(it.v)}</div>
+      <div class="pr">${typeof it.t === "number" ? (estCa ? `<span class="${it.t >= 0 ? "up" : "down"}">${it.t >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(it.t))}</span>` : fmtPct(it.t)) : ""}</div></div>`).join("")}</div>
+    <div class="card">
+      <h3>${esc(b.titre)}</h3>
+      ${b.items.map((it, i) => `<div class="rank"><span class="rn">${i + 1}</span>
+        <span class="rl">${esc(it.nom)}</span>
+        <span class="rv">${fmtEur(it.v)}</span>
+        <span class="rr">${typeof it.t === "number" ? (estCa ? `<span class="${it.t >= 0 ? "up" : "down"}">${it.t >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(it.t))}</span>` : fmtPct(it.t)) : ""}</span></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ---------- Fiche restaurant ---------- */
+const VILLES_VERS_CODE = { LANGUEUX:"ATLANTA", RENNES:"BOSTON", BRETIGNY:"COLUMBIA", CHAMBRAY:"DALLAS",
+  TOURS:"ELVIS", DIJON:"MIAMI", ARRAS:"NEW YORK", PLAISIR:"PHILADELPHIE", SARAN:"PHOENIX" };
+async function renderResto(){
+  const cat = await getCatalogue();
+  const code = state.resto;
+  const classeur = Object.keys(VILLES_VERS_CODE).find((v) => VILLES_VERS_CODE[v] === code);
+  if(!classeur){ throw new Error("Pas de détail disponible pour " + code); }
+  const catR = cat[classeur];
+  if(!catR) throw new Error("Classeur " + classeur + " introuvable");
+  const ongM = ongletPnlMensuel(catR.onglets);
+  const ongA = catR.onglets.find((n) => norm(n) === "PNL ANNUEL");
+  const d = await getOnglets(classeur, [ongM, ongA].filter(Boolean));
+
+  // Synthèse du mois pour ce restaurant
+  const os = ongletSynthese(cat, state.mois || moisDisponibles(cat).pop());
+  const syn = await getOnglets("SYNTHESE", [os]);
+  const S = parseSynthese(syn[os]);
+  const colSyn = S.cols.find((c) => c.nom === code);
+  const clesSyn = colSyn ? extraireCles(S.lignes, colSyn.nom) : [];
+
+  let blocMensuel = "", blocAnnuel = "";
+  if(ongM && d[ongM]){
+    const P = parsePnlMensuel(d[ongM]);
+    if(!state.colPnl || !P.cols.some((c) => c.nom === state.colPnl)) state.colPnl = P.cols[0].nom;
+    const col = P.cols.find((c) => c.nom === state.colPnl);
+    const cles = extraireCles(P.lignes, state.colPnl);
+    blocMensuel = `
+      <div class="navrow noprint">${P.cols.map((c) =>
+        `<button class="navchip ${c.nom === state.colPnl ? "active" : ""}" data-action="colpnl" data-c="${esc(c.nom)}">${esc(c.nom.replace(/ 20\d\d$/, ""))}</button>`).join("")}</div>
+      <div class="card"><h3>PNL mensuel — ${esc(state.colPnl)}</h3>${tableauCles(cles)}
+      <button class="toggle" data-action="tout">Afficher toutes les lignes</button>
+      <div id="toutes" class="${state.tout ? "" : "hide"}">${tableauCles(P.lignes.map((l) => ({ lab:l.lab, ...(l.vals[state.colPnl] || {}) })))}</div></div>`;
+  }
+  if(ongA && d[ongA]){
+    const A = parsePnlAnnuel(d[ongA]);
+    if(!state.colAnnuel || !A.cols.some((c) => c.nom === state.colAnnuel)) state.colAnnuel = A.cols.find((c) => /REALISE/.test(c.nom))?.nom || A.cols[0].nom;
+    const cles = extraireCles(A.lignes, state.colAnnuel);
+    blocAnnuel = `
+      <div class="navrow noprint">${A.cols.map((c) =>
+        `<button class="navchip ${c.nom === state.colAnnuel ? "active" : ""}" data-action="colannuel" data-c="${esc(c.nom)}">${esc(c.nom)}</button>`).join("")}</div>
+      <div class="card"><h3>Historique annuel — ${esc(state.colAnnuel)}</h3>${tableauCles(cles)}</div>`;
+  }
+  const sous = state.vueResto;
+  app.innerHTML = topbar(nomResto(code), MOIS_NOMS[state.mois] || "") + `
+  <div class="navrow noprint">
+    <button class="navchip ${sous === "synthese" ? "active" : ""}" data-action="vueresto" data-v="synthese">Mois en cours</button>
+    ${blocMensuel ? `<button class="navchip ${sous === "mensuel" ? "active" : ""}" data-action="vueresto" data-v="mensuel">PNL mensuel</button>` : ""}
+    ${blocAnnuel ? `<button class="navchip ${sous === "annuel" ? "active" : ""}" data-action="vueresto" data-v="annuel">Historique</button>` : ""}
+  </div>
+  <div class="wrap">
+    ${sous === "synthese" ? `<div class="card"><h3>Synthèse — ${esc(MOIS_NOMS[state.mois])}</h3>${tableauCles(clesSyn)}</div>` : ""}
+    ${sous === "mensuel" ? blocMensuel : ""}
+    ${sous === "annuel" ? blocAnnuel : ""}
+  </div>`;
+}
+
+/* ---------- Cumul annuel ---------- */
+async function renderCumul(){
+  const cat = await getCatalogue();
+  const nomTab = cat.SYNTHESE.onglets.find((n) => norm(n) === "SYNTHESE CUMUL ANNUEL")
+    || cat.SYNTHESE.onglets.find((n) => norm(n).includes("CUMUL ANNUEL"))
+    || cat.SYNTHESE.onglets.find((n) => norm(n).startsWith("SYNTHESE CUMUL"));
+  if(!nomTab) throw new Error("Onglet cumul annuel introuvable");
+  const d = await getOnglets("SYNTHESE", [nomTab]);
+  const S = parseSynthese(d[nomTab]);
+  if(!S.cols.some((c) => c.nom === state.restoCumul)) state.restoCumul = "CONSOLIDE";
+  const cles = extraireCles(S.lignes, state.restoCumul);
+  app.innerHTML = topbar("Cumul de l'année", nomTab) + `
+  <div class="navrow noprint">${["CONSOLIDE", ...S.cols.filter((c) => c.nom !== "CONSOLIDE").map((c) => c.nom)].map((c) =>
+    `<button class="navchip ${c === state.restoCumul ? "active" : ""}" data-action="cumulcol" data-c="${esc(c)}">${esc(c.charAt(0) + c.slice(1).toLowerCase())}</button>`).join("")}</div>
+  <div class="wrap"><div class="card"><h3>${esc(nomResto(state.restoCumul))}</h3>${tableauCles(cles)}</div></div>`;
+}
+
+/* ---------- Réglages ---------- */
+function renderSettings(){
+  const r = reglages();
+  app.innerHTML = topbar("Réglages", "") + `<div class="wrap" style="padding-top:12px;">
+    <div class="card">
+      <div class="field"><label>Clé du relais</label><input id="fCle" type="text" value="${esc(r.cle || "")}" autocomplete="off"></div>
+      <div class="field"><label>Adresse du relais</label><input id="fRelais" type="url" value="${esc(r.relay || RELAIS_DEFAUT)}"></div>
+      <button class="btn primary block" data-action="save-reglages">Enregistrer et recharger</button>
+    </div>
+    <div class="card">
+      <h3>Données</h3>
+      <p class="meta">Les données sont mises en cache sur l'appareil et rafraîchies à l'ouverture (ou via le bouton ⟳). L'application reste consultable hors connexion avec le dernier cache.</p>
+      <button class="btn ghost block" data-action="clear-cache" style="margin-top:8px;">🧹 Vider le cache local</button>
+    </div>
+  </div>`;
+}
+
+/* ============================ ACTIONS ============================ */
+app.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-action]");
+  if(!el) return;
+  const a = el.dataset.action;
+  if(a === "nav"){ state.view = el.dataset.v; state.tout = false; render(); }
+  else if(a === "mois"){ state.mois = parseInt(el.dataset.m, 10); state.tout = false; render(); }
+  else if(a === "resto"){ state.resto = el.dataset.code; state.view = "resto"; state.vueResto = "synthese"; state.tout = false; render(); }
+  else if(a === "cat"){ state.catClassement = parseInt(el.dataset.i, 10); render(); }
+  else if(a === "vueresto"){ state.vueResto = el.dataset.v; state.tout = false; render(); }
+  else if(a === "colpnl"){ state.colPnl = el.dataset.c; state.tout = false; render(); }
+  else if(a === "colannuel"){ state.colAnnuel = el.dataset.c; render(); }
+  else if(a === "cumulcol"){ state.restoCumul = el.dataset.c; render(); }
+  else if(a === "tout"){
+    state.tout = !state.tout;
+    const b = app.querySelector("[data-action='tout']");
+    if(b) b.textContent = state.tout ? "Masquer le détail" : "Afficher toutes les lignes";
+    const d = app.querySelector("#toutes");
+    if(d) d.classList.toggle("hide", !state.tout);
+  }
+  else if(a === "refresh"){ refresh(); }
+  else if(a === "save-reglages"){
+    const cle = $("#fCle").value.trim(), relay = $("#fRelais").value.trim() || RELAIS_DEFAUT;
+    if(!cle){ toast("Entrez la clé du relais"); return; }
+    saveReglages({ cle, relay });
+    cacheDel("req:&liste=1");
+    state.view = "home"; state.mois = null;
+    render();
+  }
+  else if(a === "clear-cache"){
+    cacheVider();
+    toast("Cache vidé");
+    render();
+  }
+});
+
+async function refresh(){
+  toast("Actualisation…");
+  try{
+    const force = true;
+    const cat = await getCatalogue(true);
+    if(!state.mois){ const m = moisDisponibles(cat); state.mois = m[m.length - 1]; }
+    if(state.view === "resto" && state.resto){
+      const classeur = Object.keys(VILLES_VERS_CODE).find((v) => VILLES_VERS_CODE[v] === state.resto);
+      const catR = cat[classeur];
+      if(catR){
+        const ongs = [ongletPnlMensuel(catR.onglets), catR.onglets.find((n) => norm(n) === "PNL ANNUEL")].filter(Boolean);
+        await getOnglets(classeur, ongs, force);
+      }
+    } else {
+      const os = ongletSynthese(cat, state.mois);
+      const oc = ongletsClassement(cat, state.mois)[0];
+      const cumul = cat.SYNTHESE.onglets.find((n) => norm(n).includes("CUMUL ANNUEL"));
+      await getOnglets("SYNTHESE", [os, oc, cumul].filter(Boolean), force);
+    }
+    await render();
+    toast("Données actualisées ✓");
+  }catch(e){ toast("Échec : " + (e.message || e)); }
+}
+
+/* ============================ DÉMARRAGE ============================ */
+render();
+</script>
+<script>
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
