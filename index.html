@@ -445,6 +445,7 @@ async function render(){
     else if(state.view === "classement") await renderClassement();
     else if(state.view === "resto") await renderResto();
     else if(state.view === "cumul") await renderCumul();
+    else if(state.view === "graph") await renderGraphiques();
     else if(state.view === "settings") renderSettings();
   }catch(e){
     app.innerHTML = topbar("Pilotage Restaurants") + `<div class="wrap">
@@ -529,11 +530,17 @@ async function renderHome(){
       <h3>Indicateurs consolidés</h3>
       ${tableauCles(cles)}
     </div>
+    <div class="card"><h3>CA par restaurant — ${MOIS_NOMS[state.mois]}</h3><div id="chartHome"></div></div>
     <h3 style="margin:16px 2px 4px;">Les restaurants <span class="meta">— touchez pour le détail</span></h3>
     <div class="restau-grid">${cards}</div>
     <button class="btn ghost block" data-action="nav" data-v="classement" style="margin-top:14px;">🏆 Voir les classements</button>
     <button class="btn ghost block" data-action="nav" data-v="cumul" style="margin-top:8px;">📅 Cumul de l'année</button>
+    <button class="btn ghost block" data-action="nav" data-v="graph" style="margin-top:8px;">📈 Graphiques d'évolution</button>
   </div>`;
+  const barresHome = restos.map((c) => ({ label:c.nom.charAt(0) + c.nom.slice(1).toLowerCase(), val:(ligneCA(S.lignes, c.nom) || {}).v }))
+    .filter((x) => typeof x.val === "number").sort((a, b) => b.val - a.val);
+  const ch = document.getElementById("chartHome");
+  if(ch) ch.innerHTML = svgBarresH(barresHome, fmtEur);
   majAge();
 }
 function majAge(){
@@ -599,20 +606,61 @@ async function renderResto(){
   const colSyn = S.cols.find((c) => c.nom === code);
   const clesSyn = colSyn ? extraireCles(S.lignes, colSyn.nom) : [];
 
-  let blocMensuel = "", blocAnnuel = "";
+  let blocMensuel = "", blocAnnuel = "", blocBVR = "", A = null;
   if(ongM && d[ongM]){
     const P = parsePnlMensuel(d[ongM]);
     if(!state.colPnl || !P.cols.some((c) => c.nom === state.colPnl)) state.colPnl = P.cols[0].nom;
     blocMensuel = blocPnlParam("PNL mensuel", P, state.colPnl, "colpnl");
   }
   if(ongA && d[ongA]){
-    const A = parsePnlAnnuel(d[ongA]);
+    A = parsePnlAnnuel(d[ongA]);
     if(!state.colAnnuel || !A.cols.some((c) => c.nom === state.colAnnuel)) state.colAnnuel = A.cols.find((c) => /REALISE/.test(c.nom))?.nom || A.cols[0].nom;
     const cles = extraireCles(A.lignes, state.colAnnuel);
+    const ligneVentes = A.lignes.find((x) => norm(x.lab) === "VENTES DE MARCHANDISES");
+    const barresAn = A.cols.map((c) => ({
+      label:c.nom.replace("CUMUL A DATE ", "CUM. ").replace("Total ", "").replace("MENSUEL ", "Mens. "),
+      val:ligneVentes ? (ligneVentes.vals[c.nom] || {}).v : null
+    })).filter((x) => typeof x.val === "number");
     blocAnnuel = `
       <div class="navrow noprint">${A.cols.map((c) =>
         `<button class="navchip ${c.nom === state.colAnnuel ? "active" : ""}" data-action="colannuel" data-c="${esc(c.nom)}">${esc(c.nom)}</button>`).join("")}</div>
-      <div class="card"><h3>Historique annuel — ${esc(state.colAnnuel)}</h3>${tableauCles(cles)}</div>`;
+      <div class="card"><h3>Historique annuel — ${esc(state.colAnnuel)}</h3>${tableauCles(cles)}</div>
+      <div class="card"><h3>CA par année et scénario</h3>${svgBarresH(barresAn, fmtEur)}</div>`;
+    // Comparaison Réalisé vs Budget
+    const annees = [...new Set(A.cols.map((c) => (norm(c.nom).match(/(20\d\d)/) || [])[1]).filter(Boolean))];
+    const annee = state.bvrAnnee && annees.includes(state.bvrAnnee) ? state.bvrAnnee
+      : (annees.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : annees[0]);
+    const col = (re) => A.cols.find((c) => re.test(norm(c.nom)));
+    const cB = col(new RegExp("CUMUL A DATE " + annee + ".*BUDGET")) || col(new RegExp("TOTAL " + annee + ".*BUDGET"));
+    const cF = col(new RegExp("TOTAL " + annee + ".*FORECAST"));
+    const cR = col(new RegExp("CUMUL A DATE " + annee + ".*REALISE")) || col(new RegExp("TOTAL " + annee + ".*REALISE"));
+    if(cB || cR || cF){
+      const v = (l, c) => (c && l.vals[c.nom]) ? l.vals[c.nom].v : null;
+      const lignesCles = [];
+      const vus = new Set();
+      for(const variantes of CLES_PNL){
+        for(const l of A.lignes){
+          const nl = norm(l.lab);
+          if(variantes.some((vv) => nl === vv) && !vus.has(nl)){ vus.add(nl); lignesCles.push(l); break; }
+        }
+      }
+      const cell = (x) => `<td class="num">${typeof x === "number" ? fmtEur(x) : "—"}</td>`;
+      const lignesHtml = lignesCles.map((l) => {
+        const b = v(l, cB), f = v(l, cF), r = v(l, cR);
+        const ecart = (typeof r === "number" && typeof b === "number") ? r - b : null;
+        const epct = (ecart !== null && b) ? ecart / Math.abs(b) : null;
+        const ecartHtml = ecart === null ? "—" : `<span class="${ecart >= 0 ? "up" : "down"}">${ecart >= 0 ? "+" : "−"}${fmtEur(Math.abs(ecart))}</span>`;
+        const pctHtml = epct === null ? "—" : `<span class="${epct >= 0 ? "up" : "down"}">${epct >= 0 ? "+" : "−"}${fmtPct(Math.abs(epct))}</span>`;
+        return `<tr class="${norm(l.lab) === "VENTES DE MARCHANDISES" ? "sec" : ""}"><td class="lab">${esc(l.lab)}</td>${cell(b)}${cF ? cell(f) : ""}${cell(r)}<td class="num">${ecartHtml}</td><td class="num">${pctHtml}</td></tr>`;
+      }).join("");
+      blocBVR = `
+        <div class="navrow noprint">${annees.map((a) =>
+          `<button class="navchip ${a === annee ? "active" : ""}" data-action="anneedelta" data-a="${a}">${a}</button>`).join("")}</div>
+        <div class="card" style="padding:10px;"><div class="gtwrap"><table class="gt">
+          <thead><tr><th>Ligne</th><th>Budget</th>${cF ? "<th>Forecast</th>" : ""}<th>Réalisé</th><th>Écart R/B</th><th>Écart %</th></tr></thead>
+          <tbody>${lignesHtml}</tbody></table></div>
+          <p class="meta" style="margin:8px 2px 0;">Écart = Réalisé − Budget (cumul à date ${annee}). Vert : au-dessus du budget, rouge : en dessous.</p></div>`;
+    }
   }
 
   // Sections supplémentaires : budgets, atterrissage/SIG, contrats, organigrammes, immo, suivi
@@ -652,12 +700,14 @@ async function renderResto(){
     <button class="navchip ${sous === "synthese" ? "active" : ""}" data-action="vueresto" data-v="synthese">Mois en cours</button>
     ${blocMensuel ? `<button class="navchip ${sous === "mensuel" ? "active" : ""}" data-action="vueresto" data-v="mensuel">PNL mensuel</button>` : ""}
     ${blocAnnuel ? `<button class="navchip ${sous === "annuel" ? "active" : ""}" data-action="vueresto" data-v="annuel">Historique</button>` : ""}
+    ${A ? `<button class="navchip ${sous === "bvr" ? "active" : ""}" data-action="vueresto" data-v="bvr">Réalisé vs Budget</button>` : ""}
     ${secs.map((s, i) => `<button class="navchip ${state.extra && state.extra.sec === i && sous === "extra" ? "active" : ""}" data-action="extra" data-i="${i}">${esc(s.label)}</button>`).join("")}
   </div>
   <div class="wrap">
     ${sous === "synthese" ? `<div class="card"><h3>Synthèse — ${esc(MOIS_NOMS[state.mois])}</h3>${tableauCles(clesSyn)}</div>` : ""}
     ${sous === "mensuel" ? blocMensuel : ""}
     ${sous === "annuel" ? blocAnnuel : ""}
+    ${sous === "bvr" ? (blocBVR || `<div class="card"><div class="empty">Comparaison indisponible pour ce restaurant</div></div>`) : ""}
     ${sous === "extra" ? (blocExtra || `<div class="card"><div class="empty">Choisissez une section ci-dessus</div></div>`) : ""}
     ${sous === "extra" && state.extra ? `<div class="navrow noprint">${secs[state.extra.sec].tabs.map((t, j) =>
       `<button class="navchip ${state.extra.tab === j ? "active" : ""}" data-action="extratab" data-t="${j}">${esc(t)}</button>`).join("")}</div>` : ""}
@@ -793,6 +843,115 @@ function tableGenerique(grid){
   return html;
 }
 
+/* ---- Graphiques SVG (sans dépendance) ---- */
+function svgBarresH(items, fmt){
+  items = items.filter((x) => typeof x.val === "number");
+  if(!items.length) return `<div class="empty">Pas de données</div>`;
+  const max = Math.max(...items.map((i) => Math.abs(i.val)), 1);
+  const rowH = 30, w = 620, labelW = 118;
+  const h = items.length * rowH + 6;
+  let s = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;" role="img" aria-label="barres">`;
+  items.forEach((it, i) => {
+    const y = i * rowH + 4;
+    const bw = Math.max(2, Math.abs(it.val) / max * (w - labelW - 96));
+    const couleur = it.val < 0 ? "#dc2626" : "#0f766e";
+    s += `<text x="${labelW - 6}" y="${y + 15}" text-anchor="end" font-size="11.5" fill="currentColor">${esc(it.label)}</text>`;
+    s += `<rect x="${labelW}" y="${y + 3}" width="${bw}" height="18" rx="4" fill="${couleur}" opacity=".85"></rect>`;
+    s += `<text x="${labelW + bw + 6}" y="${y + 17}" font-size="11.5" font-weight="700" fill="currentColor">${fmt(it.val)}</text>`;
+  });
+  return s + "</svg>";
+}
+function svgLigne(serie, fmt){
+  const pts = serie.filter((p) => typeof p.val === "number");
+  if(pts.length < 2) return `<div class="empty">Pas assez de mois pour tracer une courbe.</div>`;
+  const vals = pts.map((p) => p.val);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if(min === max){ min -= 1; max += 1; }
+  const marge = (max - min) * 0.14; min -= marge; max += marge;
+  const w = 640, hh = 250, mL = 80, mR = 18, mT = 20, mB = 36;
+  const xi = (i) => mL + (i * (w - mL - mR)) / Math.max(1, serie.length - 1);
+  const yi = (v) => mT + (1 - (v - min) / (max - min)) * (hh - mT - mB);
+  let path = "", started = false;
+  serie.forEach((p, i) => {
+    if(typeof p.val !== "number"){ started = false; return; }
+    path += (started ? " L" : " M") + xi(i).toFixed(1) + " " + yi(p.val).toFixed(1);
+    started = true;
+  });
+  const grille = [0, 0.5, 1].map((t) => {
+    const v = min + (max - min) * (1 - t);
+    return `<line x1="${mL}" x2="${w - mR}" y1="${yi(v).toFixed(1)}" y2="${yi(v).toFixed(1)}" stroke="#e2e8f0" stroke-width="1"></line>
+      <text x="${mL - 6}" y="${(yi(v) + 4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#64748b">${fmt(v)}</text>`;
+  }).join("");
+  const points = serie.map((p, i) => typeof p.val === "number"
+    ? `<circle cx="${xi(i).toFixed(1)}" cy="${yi(p.val).toFixed(1)}" r="4" fill="#0f766e"></circle>
+       <text x="${xi(i).toFixed(1)}" y="${hh - 14}" text-anchor="middle" font-size="10.5" fill="#64748b">${esc(p.label)}</text>` : "").join("");
+  const dernier = pts[pts.length - 1];
+  const idxD = serie.indexOf(dernier);
+  const etiq = `<text x="${Math.min(xi(idxD), w - mR - 4).toFixed(1)}" y="${Math.max(yi(dernier.val) - 10, mT + 8).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="800" fill="#0f766e">${fmt(dernier.val)}</text>`;
+  return `<svg viewBox="0 0 ${w} ${hh}" style="width:100%;height:auto;" role="img" aria-label="courbe">${grille}
+    <path d="${path}" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linejoin="round"></path>${points}${etiq}</svg>`;
+}
+
+/* ---- Vue Graphiques : évolution mensuelle ---- */
+const METRIQUES_GRAPH = [
+  { id:"VENTES", label:"CA", key:"VENTES DE MARCHANDISES" },
+  { id:"MARGE", label:"Marge comm.", key:"MARGE COMMERCIALE" },
+  { id:"EBE", label:"EBE", key:"EBE" },
+  { id:"RESULTAT", label:"Rés. exploitation", key:"RESULTAT EXPLOITATION" }
+];
+async function renderGraphiques(){
+  const cat = await getCatalogue();
+  const mois = moisDisponibles(cat);
+  const ongs = mois.map((m) => ongletSynthese(cat, m)).filter(Boolean);
+  if(!ongs.length) throw new Error("Aucune synthèse mensuelle");
+  let series = cacheGet("graph:series:v1");
+  if(state.graphForce){ series = null; state.graphForce = false; }
+  if(!series || !series.parCode){
+    toast("Chargement de tous les mois… (20 à 40 s au premier affichage)");
+    const donnees = await getOnglets("SYNTHESE", ongs, true);
+    const S0 = parseSynthese(donnees[ongs[0]]);
+    const parCode = {};
+    S0.cols.forEach((c) => { parCode[c.nom] = {}; });
+    METRIQUES_GRAPH.forEach((m) => {
+      S0.cols.forEach((c) => { parCode[c.nom][m.id] = []; });
+    });
+    ongs.forEach((n, i) => {
+      const S = parseSynthese(donnees[n]);
+      S0.cols.forEach((c) => {
+        const colS = S.cols.find((x) => x.nom === c.nom);
+        METRIQUES_GRAPH.forEach((m) => {
+          let v = null;
+          if(colS){
+            const l = S.lignes.find((x) => norm(x.lab) === m.key);
+            v = l ? (l.vals[c.nom] || {}).v ?? null : null;
+          }
+          parCode[c.nom][m.id].push(v);
+        });
+      });
+    });
+    series = { parCode, labels: ongs.map((n, i) => (MOIS_NOMS[mois[i]] || "?").slice(0, 4) + ".") };
+    cacheSet("graph:series:v1", series);
+  }
+  if(!state.graph) state.graph = { met:"VENTES", code:"CONSOLIDE" };
+  if(!series.parCode[state.graph.code]) state.graph.code = "CONSOLIDE";
+  const met = METRIQUES_GRAPH.find((m) => m.id === state.graph.met) || METRIQUES_GRAPH[0];
+  const serie = series.labels.map((lab, i) => ({ label:lab, val:series.parCode[state.graph.code][met.id][i] }));
+  const fmt = (v) => fmtEur(v);
+  const dernierMois = series.labels[series.labels.length - 1];
+  const barres = Object.keys(series.parCode).filter((c) => c !== "CONSOLIDE")
+    .map((c) => ({ label:c.charAt(0) + c.slice(1).toLowerCase(), val:series.parCode[c][met.id][series.labels.length - 1] }))
+    .filter((x) => typeof x.val === "number").sort((a, b) => b.val - a.val);
+  app.innerHTML = topbar("Graphiques", "Évolution " + (series.labels[0] || "") + " → " + dernierMois) + `
+  <div class="wrap">
+    <div class="navrow noprint">${METRIQUES_GRAPH.map((m) =>
+      `<button class="navchip ${m.id === met.id ? "active" : ""}" data-action="gmet" data-m="${m.id}">${esc(m.label)}</button>`).join("")}</div>
+    <div class="navrow noprint">${Object.keys(series.parCode).map((c) =>
+      `<button class="navchip ${c === state.graph.code ? "active" : ""}" data-action="gcode" data-c="${esc(c)}">${esc(c.charAt(0) + c.slice(1).toLowerCase())}</button>`).join("")}</div>
+    <div class="card"><h3>${esc(met.label)} — ${esc(nomResto(state.graph.code))}</h3>${svgLigne(serie, fmt)}</div>
+    <div class="card"><h3>${esc(met.label)} par restaurant — ${esc(dernierMois)}</h3>${svgBarresH(barres, fmt)}</div>
+  </div>`;
+}
+
 /* ============================ ACTIONS ============================ */
 app.addEventListener("click", (e) => {
   const el = e.target.closest("[data-action]");
@@ -819,6 +978,9 @@ app.addEventListener("click", (e) => {
   }
   else if(a === "extratab"){ if(state.extra){ state.extra.tab = parseInt(el.dataset.t, 10); state.extra.col = null; state.tout = false; render(); } }
   else if(a === "colextra"){ if(state.extra){ state.extra.col = el.dataset.c; state.tout = false; render(); } }
+  else if(a === "anneedelta"){ state.bvrAnnee = el.dataset.a; render(); }
+  else if(a === "gmet"){ state.graph = state.graph || {}; state.graph.met = el.dataset.m; render(); }
+  else if(a === "gcode"){ state.graph = state.graph || {}; state.graph.code = el.dataset.c; render(); }
   else if(a === "refresh"){ refresh(); }
   else if(a === "save-reglages"){
     const cle = $("#fCle").value.trim(), relay = $("#fRelais").value.trim() || RELAIS_DEFAUT;
