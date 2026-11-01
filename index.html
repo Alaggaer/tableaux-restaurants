@@ -124,6 +124,15 @@
   .sheet h3{margin:0 0 14px; font-size:18px;}
   .toggle{font-size:13px; font-weight:700; color:var(--brand-dark); background:var(--brand-soft);
     border:none; border-radius:10px; padding:9px 13px; margin-top:10px;}
+  .gtwrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.gt{border-collapse:collapse; width:100%; font-size:12.5px;}
+  table.gt th{position:sticky; top:0; background:#f1f5f9; color:#334155; text-align:left;
+    padding:7px 9px; border-bottom:2px solid var(--line); white-space:nowrap; font-size:11.5px;}
+  table.gt td{padding:7px 9px; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.gt td.num{white-space:nowrap; font-variant-numeric:tabular-nums;}
+  table.gt td.lab{font-weight:600; min-width:110px;}
+  table.gt tr.sec td{background:#f0fdfa; color:var(--brand-dark); font-weight:800; text-transform:uppercase; font-size:11.5px;}
+  table.gt tr:hover td{background:#f8fafc;}
   @media print{ .noprint{display:none !important;} body{background:#fff;} }
 </style>
 </head>
@@ -594,14 +603,7 @@ async function renderResto(){
   if(ongM && d[ongM]){
     const P = parsePnlMensuel(d[ongM]);
     if(!state.colPnl || !P.cols.some((c) => c.nom === state.colPnl)) state.colPnl = P.cols[0].nom;
-    const col = P.cols.find((c) => c.nom === state.colPnl);
-    const cles = extraireCles(P.lignes, state.colPnl);
-    blocMensuel = `
-      <div class="navrow noprint">${P.cols.map((c) =>
-        `<button class="navchip ${c.nom === state.colPnl ? "active" : ""}" data-action="colpnl" data-c="${esc(c.nom)}">${esc(c.nom.replace(/ 20\d\d$/, ""))}</button>`).join("")}</div>
-      <div class="card"><h3>PNL mensuel — ${esc(state.colPnl)}</h3>${tableauCles(cles)}
-      <button class="toggle" data-action="tout">Afficher toutes les lignes</button>
-      <div id="toutes" class="${state.tout ? "" : "hide"}">${tableauCles(P.lignes.map((l) => ({ lab:l.lab, ...(l.vals[state.colPnl] || {}) })))}</div></div>`;
+    blocMensuel = blocPnlParam("PNL mensuel", P, state.colPnl, "colpnl");
   }
   if(ongA && d[ongA]){
     const A = parsePnlAnnuel(d[ongA]);
@@ -612,17 +614,53 @@ async function renderResto(){
         `<button class="navchip ${c.nom === state.colAnnuel ? "active" : ""}" data-action="colannuel" data-c="${esc(c.nom)}">${esc(c.nom)}</button>`).join("")}</div>
       <div class="card"><h3>Historique annuel — ${esc(state.colAnnuel)}</h3>${tableauCles(cles)}</div>`;
   }
+
+  // Sections supplémentaires : budgets, atterrissage/SIG, contrats, organigrammes, immo, suivi
+  const secs = sectionsExtras(catR.onglets);
+  let blocExtra = "";
+  if(state.extra && secs[state.extra.sec]){
+    const sec = secs[state.extra.sec];
+    if(state.extra.tab >= sec.tabs.length) state.extra.tab = 0;
+    const nomTab = sec.tabs[state.extra.tab];
+    const d2 = await getOnglets(classeur, [nomTab]);
+    const g = d2[nomTab];
+    if(!g){
+      blocExtra = `<div class="card"><h3>${esc(nomTab)}</h3><div class="empty">Onglet vide</div></div>`;
+    } else if(sec.type === "pnl" || (sec.type === "att" && !norm(nomTab).startsWith("SIG"))){
+      const P = parsePnlMensuel(g);
+      if(P.cols.length){
+        if(!state.extra.col || !P.cols.some((c) => c.nom === state.extra.col)) state.extra.col = P.cols[0].nom;
+        blocExtra = blocPnlParam(nomTab, P, state.extra.col, "colextra");
+      } else blocExtra = `<div class="card"><h3>${esc(nomTab)}</h3>${tableGenerique(g)}</div>`;
+    } else if(sec.type === "att"){
+      const T = parseTableColonnes(g, 0, 1);
+      if(T.cols.length && extraireCles(T.lignes, T.cols[0].nom).length){
+        if(!state.extra.col || !T.cols.some((c) => c.nom === state.extra.col)) state.extra.col = T.cols[0].nom;
+        const cles = extraireCles(T.lignes, state.extra.col);
+        blocExtra = `<div class="navrow noprint">${T.cols.map((c) =>
+          `<button class="navchip ${c.nom === state.extra.col ? "active" : ""}" data-action="colextra" data-c="${esc(c.nom)}">${esc(c.nom)}</button>`).join("")}</div>
+          <div class="card"><h3>${esc(nomTab)} — ${esc(state.extra.col)}</h3>${tableauCles(cles)}</div>`;
+      } else blocExtra = `<div class="card"><h3>${esc(nomTab)}</h3>${tableGenerique(g)}</div>`;
+    } else {
+      blocExtra = `<div class="card"><h3>${esc(nomTab)}</h3>${tableGenerique(g)}</div>`;
+    }
+  }
+
   const sous = state.vueResto;
   app.innerHTML = topbar(nomResto(code), MOIS_NOMS[state.mois] || "") + `
   <div class="navrow noprint">
     <button class="navchip ${sous === "synthese" ? "active" : ""}" data-action="vueresto" data-v="synthese">Mois en cours</button>
     ${blocMensuel ? `<button class="navchip ${sous === "mensuel" ? "active" : ""}" data-action="vueresto" data-v="mensuel">PNL mensuel</button>` : ""}
     ${blocAnnuel ? `<button class="navchip ${sous === "annuel" ? "active" : ""}" data-action="vueresto" data-v="annuel">Historique</button>` : ""}
+    ${secs.map((s, i) => `<button class="navchip ${state.extra && state.extra.sec === i && sous === "extra" ? "active" : ""}" data-action="extra" data-i="${i}">${esc(s.label)}</button>`).join("")}
   </div>
   <div class="wrap">
     ${sous === "synthese" ? `<div class="card"><h3>Synthèse — ${esc(MOIS_NOMS[state.mois])}</h3>${tableauCles(clesSyn)}</div>` : ""}
     ${sous === "mensuel" ? blocMensuel : ""}
     ${sous === "annuel" ? blocAnnuel : ""}
+    ${sous === "extra" ? (blocExtra || `<div class="card"><div class="empty">Choisissez une section ci-dessus</div></div>`) : ""}
+    ${sous === "extra" && state.extra ? `<div class="navrow noprint">${secs[state.extra.sec].tabs.map((t, j) =>
+      `<button class="navchip ${state.extra.tab === j ? "active" : ""}" data-action="extratab" data-t="${j}">${esc(t)}</button>`).join("")}</div>` : ""}
   </div>`;
 }
 
@@ -660,6 +698,101 @@ function renderSettings(){
   </div>`;
 }
 
+/* ---- Onglets supplémentaires (budgets, atterrissage, SIG, contrats, organigrammes...) ---- */
+function sectionsExtras(onglets){
+  const has = (pred) => onglets.filter(pred);
+  const secs = [];
+  const budgets = has((n) => norm(n).startsWith("BUDGET"));
+  if(budgets.length) secs.push({ id:"budget", label:"Budgets", tabs:budgets, type:"pnl" });
+  const att = has((n) => norm(n).startsWith("ATTERRISSAGE") || norm(n).startsWith("SIG"));
+  if(att.length) secs.push({ id:"att", label:"Atterrissage & SIG", tabs:att, type:"att" });
+  const cont = has((n) => norm(n).includes("CONTRAT"));
+  if(cont.length) secs.push({ id:"contrats", label:"Contrats", tabs:cont, type:"table" });
+  const orgs = has((n) => norm(n).startsWith("ORGANIGRAMME"));
+  if(orgs.length) secs.push({ id:"orga", label:"Organigrammes", tabs:orgs, type:"table" });
+  const immo = has((n) => norm(n).includes("IMMO"));
+  if(immo.length) secs.push({ id:"immo", label:"Immobilier", tabs:immo, type:"table" });
+  const suivi = has((n) => norm(n).startsWith("SUIVI"));
+  if(suivi.length) secs.push({ id:"suivi", label:"Suivi", tabs:suivi, type:"table" });
+  return secs;
+}
+function blocPnlParam(titre, P, colSel, action){
+  const cles = extraireCles(P.lignes, colSel);
+  return `<div class="navrow noprint">${P.cols.map((c) =>
+    `<button class="navchip ${c.nom === colSel ? "active" : ""}" data-action="${action}" data-c="${esc(c.nom)}">${esc(c.nom)}</button>`).join("")}</div>
+  <div class="card"><h3>${esc(titre)} — ${esc(colSel)}</h3>${tableauCles(cles)}
+  <button class="toggle" data-action="tout">Afficher toutes les lignes</button>
+  <div id="toutes" class="${state.tout ? "" : "hide"}">${tableauCles(P.lignes.map((l) => ({ lab:l.lab, ...(l.vals[colSel] || {}) })))}</div></div>`;
+}
+function parseTableColonnes(grid, headerIdx, labelCol){
+  const heads = grid[headerIdx] || [];
+  const cols = [];
+  heads.forEach((hh, c) => {
+    if(c === labelCol) return;
+    const nom = String(hh ?? "").trim();
+    if(nom) cols.push({ nom, val:c });
+  });
+  const lignes = [];
+  for(let i = headerIdx + 1; i < grid.length; i++){
+    const lab = String((grid[i] || [])[labelCol] ?? "").trim();
+    if(!lab) continue;
+    const vals = {};
+    cols.forEach((c) => { const v = grid[i][c.val]; vals[c.nom] = { v:(typeof v === "number" ? v : null), p:null }; });
+    lignes.push({ lab, vals });
+  }
+  return { cols, lignes };
+}
+function fmtCellule(v){
+  if(v === null || v === undefined || v === "") return "";
+  if(typeof v === "string" && /^-?\d{1,15}([.,]\d+)?$/.test(v.trim())){
+    try{ v = parseFloat(v.replace(",", ".")); }catch(e){ /* garde la chaîne */ }
+  }
+  if(typeof v === "number"){
+    if(Math.abs(v) < 1.5 && !Number.isInteger(v)) return fmtPct(v);
+    if(Math.abs(v) >= 1000) return fmtEur(v);
+    return v.toLocaleString("fr-FR", { maximumFractionDigits:2 });
+  }
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[3] + "/" + m[2] + "/" + m[1];
+  return s;
+}
+function tableGenerique(grid){
+  let h = -1;
+  for(let i = 0; i < Math.min(8, grid.length); i++){
+    const row = grid[i] || [];
+    const pleines = row.filter((c) => String(c ?? "").trim() !== "");
+    if(pleines.length >= 3 && pleines.every((c) => typeof c === "string" || c instanceof Date === false && typeof c === "string")){ h = i; break; }
+  }
+  const used = new Set();
+  grid.forEach((row, i) => {
+    if(h >= 0 && i <= h) return;
+    (row || []).forEach((c, j) => { if(String(c ?? "").trim() !== "") used.add(j); });
+  });
+  const cols = [...used].sort((a, b) => a - b);
+  const head = h >= 0 ? grid[h] : null;
+  let avant = "";
+  if(h > 0){
+    const t = grid.slice(0, h).map((r) => (r || []).filter((c) => String(c ?? "").trim() !== "").map((c) => fmtCellule(c)).join(" · ")).filter(Boolean).join(" — ");
+    if(t) avant = `<p class="meta" style="margin:4px 0 8px;">${esc(t)}</p>`;
+  }
+  let html = avant + `<div class="gtwrap"><table class="gt"><thead><tr>`;
+  html += cols.map((c) => {
+    const t = head && String(head[c] ?? "").trim();
+    return `<th>${esc(t || "Col. " + (c + 1))}</th>`;
+  }).join("");
+  html += `</tr></thead><tbody>`;
+  grid.forEach((row, i) => {
+    if(i === h) return;
+    const cells = cols.map((c) => String(row ? (row[c] ?? "") : "").trim() !== "" ? fmtCellule(row[c]) : "");
+    if(cells.every((x) => x === "")) return;
+    const section = cells.slice(1).every((x) => x === "");
+    html += `<tr class="${section ? "sec" : ""}">${cells.map((x, k) => `<td class="${k === 0 ? "lab" : "num"}">${x}</td>`).join("")}</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  return html;
+}
+
 /* ============================ ACTIONS ============================ */
 app.addEventListener("click", (e) => {
   const el = e.target.closest("[data-action]");
@@ -667,9 +800,9 @@ app.addEventListener("click", (e) => {
   const a = el.dataset.action;
   if(a === "nav"){ state.view = el.dataset.v; state.tout = false; render(); }
   else if(a === "mois"){ state.mois = parseInt(el.dataset.m, 10); state.tout = false; render(); }
-  else if(a === "resto"){ state.resto = el.dataset.code; state.view = "resto"; state.vueResto = "synthese"; state.tout = false; render(); }
+  else if(a === "resto"){ state.resto = el.dataset.code; state.view = "resto"; state.vueResto = "synthese"; state.tout = false; state.extra = null; render(); }
   else if(a === "cat"){ state.catClassement = parseInt(el.dataset.i, 10); render(); }
-  else if(a === "vueresto"){ state.vueResto = el.dataset.v; state.tout = false; render(); }
+  else if(a === "vueresto"){ state.vueResto = el.dataset.v; state.tout = false; state.extra = null; render(); }
   else if(a === "colpnl"){ state.colPnl = el.dataset.c; state.tout = false; render(); }
   else if(a === "colannuel"){ state.colAnnuel = el.dataset.c; render(); }
   else if(a === "cumulcol"){ state.restoCumul = el.dataset.c; render(); }
@@ -680,6 +813,12 @@ app.addEventListener("click", (e) => {
     const d = app.querySelector("#toutes");
     if(d) d.classList.toggle("hide", !state.tout);
   }
+  else if(a === "extra"){
+    state.extra = { sec:parseInt(el.dataset.i, 10), tab:0, col:null };
+    state.vueResto = "extra"; state.tout = false; render();
+  }
+  else if(a === "extratab"){ if(state.extra){ state.extra.tab = parseInt(el.dataset.t, 10); state.extra.col = null; state.tout = false; render(); } }
+  else if(a === "colextra"){ if(state.extra){ state.extra.col = el.dataset.c; state.tout = false; render(); } }
   else if(a === "refresh"){ refresh(); }
   else if(a === "save-reglages"){
     const cle = $("#fCle").value.trim(), relay = $("#fRelais").value.trim() || RELAIS_DEFAUT;
