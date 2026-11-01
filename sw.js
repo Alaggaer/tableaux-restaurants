@@ -1,5 +1,5 @@
 /* Service worker : met l'application en cache (les données viennent du relais, hors SW). */
-const CACHE = "pilotage-v6";
+const CACHE = "pilotage-v7";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg", "./icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {

@@ -217,9 +217,19 @@ async function appelRelais(params, force){
   if(!cle) throw new Error("CLE_MANQUANTE");
   const full = url + "?cle=" + encodeURIComponent(cle) + (params || "");
   const ck = "req:" + params;
-  if(!force){
-    const c = cacheGet(ck);
-    if(c && (Date.now() - c.ts) < 12 * 3600 * 1000) return c.d;
+  const DUREE = 30 * 60 * 1000;
+  const c = cacheGet(ck);
+  if(c && (Date.now() - c.ts) < DUREE) return c.d;
+  if(c && !force){
+    // cache périmé mais présent : on l'affiche tout de suite, on actualise en arrière-plan
+    if(!cacheGet("bg" + ck)){
+      cacheSet("bg" + ck, { ts:Date.now() });
+      fetch(full).then((r2) => r2.json()).then((data) => {
+        cacheDel("bg" + ck);
+        if(!data.erreur){ cacheSet(ck, data); if(state.view === "home") render(); }
+      }).catch(() => cacheDel("bg" + ck));
+    }
+    return c.d;
   }
   const resp = await fetch(full);
   if(!resp.ok) throw new Error("HTTP " + resp.status);
