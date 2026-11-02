@@ -143,7 +143,16 @@
 "use strict";
 
 /* ============================ CONFIG ============================ */
-const RELAIS_DEFAUT = "https://script.google.com/macros/s/AKfycbzxxGutRsmlzf-Hs9U4U67rHw25dILtLYbeqo-MNjeGSxvqQ_WdPEig7BaV1NLB2zFzhw/exec";
+const RELAIS_DEFAUT = "https://script.google.com/macros/s/AKfycbzp3Z5zY6ngeR2PJ9mDk50oZT4q5YJPoGau42AwXd7IV_HeHYOY06mPiRMYj90D3qnyaA/exec";
+// Anciennes adresses de relais : basculées automatiquement sur la nouvelle
+const RELAIS_ANCIENS = [
+  "https://script.google.com/macros/s/AKfycbzxxGutRsmlzf-Hs9U4U67rHw25dILtLYbeqo-MNjeGSxvqQ_WdPEig7BaV1NLB2zFzhw/exec",
+  "https://script.google.com/macros/s/AKfycbw7dc6cKCKqk9V9-E7eud9shV0I4sE0v0DK0Kbl8CGitwoNx2G_AXYpgO2B42ROA_bxAg/exec"
+];
+function migrerRelais(){
+  const r = reglages();
+  if(r.relay && RELAIS_ANCIENS.includes(r.relay)) saveReglages(Object.assign({}, r, { relay:RELAIS_DEFAUT }));
+}
 
 /* ============================ ÉTAT ============================ */
 const state = { view:"home", mois:null, resto:null, catClassement:0, vueResto:"synthese",
@@ -1032,6 +1041,7 @@ async function refresh(){
 }
 
 /* ============================ DÉMARRAGE ============================ */
+migrerRelais();
 render();
 </script>
 <script>
