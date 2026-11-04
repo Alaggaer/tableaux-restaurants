@@ -224,7 +224,7 @@ function saveReglages(r){ localStorage.setItem("pilotage:reglages", JSON.stringi
 /* ============================ RELAIS ============================ */
 async function appelRelais(params, force){
   const r = reglages();
-  const url = r.relay || RELAIS_DEFAUT, cle = r.cle || "";
+  const url = r.relay || RELAIS_DEFAUT, cle = r.cle || "f65bca368ee2";
   if(!cle) throw new Error("CLE_MANQUANTE");
   const full = url + "?cle=" + encodeURIComponent(cle) + (params || "");
   const ck = "req:" + params;
